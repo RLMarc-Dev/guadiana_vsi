@@ -1,0 +1,503 @@
+#### LEYENDA ####
+#! Cosas a corregir
+#? Cosas a aclarar
+#TODO PENDIENTE DE HACER
+
+#https://python-para-impacientes.blogspot.com/2016/09/dar-color-las-salidas-en-la-consola.html
+#ubicado en C:\Users\Marc\Documents\ADAMO\VENV_PYTHON
+
+
+
+import telnetlib
+import getpass
+import time
+from colorama.ansi import Style
+from numpy import e, little_endian
+import pandas as pd
+from colorama import Fore, Back
+
+
+
+def introduce_credenciales():
+
+    '''user = input ('Introduce el usuario: ')
+    password = getpass.getpass()'''
+
+    user = 'adamaro'
+    password = ' '
+    
+    return user, password
+
+
+def Input():
+
+    df = pd.read_excel('INPUT_Guadiana_valida_vsi.xlsx')
+    
+    return df
+
+
+def telnet (IP,user,password):
+    error_auth = 'Error: Authentication fail'
+    print (" ")
+    print ("Realizando acceso telnet a: "+IP)
+    print (" ")
+    tn = telnetlib.Telnet(IP)
+    a = tn.read_until(b'Username:')
+    tn.write(user.encode('ascii') + b"\n")
+    b = tn.read_until(b'Password:')
+    tn.write(password.encode('ascii') + b"\n")
+    c = str(tn.read_until(b'-cs-20>', 2))
+    print (c)
+    #? Convertimos a String para validar si se autentica correctamente
+    
+    if error_auth in c:
+        print ("Error de auth")
+        print (" ")
+        print ("El script no puede continuar ya que hay error de autenticacion")
+        tn = 'error_salir'
+        
+
+        return tn
+
+    elif error_auth not in c:
+        print (Fore.BLUE+"ESTOY DENTRO DEL EQUIPO CON IP: "+Fore.RESET+""+IP)
+        time.sleep(2)
+        print ("Eliminando limitación por buffer de la salida...")
+        a = tn.write(b'screen-length 0 temporary'+ b"\n")  
+        print (a)
+    
+
+    return tn
+
+
+def display_vsi_i_TELEFONICA_166(tn,IP):
+
+    print ("dis vsi | i TELEFONICA-166")
+    print ("Buscando las vsi del nodo: "+IP)
+    a = tn.read_until(b'>',2)
+    tn.write(b'display vsi | i  TELEFONICA-166'+b' \n')
+    a = tn.read_until(b'>',2)
+    a = str(a)
+    #print (a)
+
+    return a
+
+def parse_display_vsi_i_TELEFONICA_166(a):
+
+    a = a.replace('\\r','')
+    a = a.split('\\n')
+    a = str((a[1:]))
+    #print ((a)[0])
+    #print (Fore.LIGHTCYAN_EX+a+Fore.RESET)
+
+    return a
+
+
+def display_int_des_i_local_ID166(tn,IP):
+
+    print ("dis int des | i local ID:166-")
+    print ("Buscando las interfaces del nodo: "+IP)
+    a = tn.read_until(b'>',2)
+    tn.write(b'dis int des | i local ID:166-'+b' \n')
+    a = tn.read_until(b'>',2)
+    a = str(a)
+    #print (a)
+
+    return a
+
+def parse_display_int_des_i_local_ID166(a):
+
+    hostname = ''
+    a = a.replace('\\r','')
+    a = a.split('\\n')
+    #print (a)
+    a  = (a[1:])
+    
+
+
+    for elemento in a: 
+        if '<' in elemento: 
+    
+            #print (Back.YELLOW+elemento+Back.RESET)
+            hostname = elemento
+
+    a = str(a)        
+    #print (Fore.LIGHTBLUE_EX+a+Fore.RESET)
+    return a, hostname
+    
+
+
+def display_mac_address_Eth_Trunk_100_ACCESO(tn,IP):
+
+
+    print ("dis mac-address Eth-Trunk 100")
+    print ("Buscando las MAC de la interfaz Eth-Trunk100: "+IP)
+    a = tn.read_until(b'>',2)
+    tn.write(b'dis mac-address Eth-Trunk 100'+b' \n')
+    a = tn.read_until(b'>',2)
+    a = str(a)
+    #print (a)
+
+    return a
+
+
+def parse_display_mac_address_Eth_Trunk_100(a,tn):
+
+    print (a)
+    a = a.replace('\\r','')
+    a = a.split('\\n')
+    print (a)
+    for elemento in a: 
+        if 'Total items displayed = 0 ' in elemento: 
+            print (Fore.LIGHTRED_EX+elemento+Fore.RESET)
+
+            b = tn.read_until(b'>',2)
+            tn.write(b'dis int des | i Trunk100'+b' \n')
+            b = tn.read_until(b'>',2)
+            b = str(b)
+            print (b)
+
+            b = b.replace('\\r','')
+            b = b.split('\\n')
+            for elemento2 in b: 
+                if 'down    down' in elemento2: 
+                    print (elemento2)
+
+
+                    return 'Eth-Trunk100 Down'
+                
+                elif 'up' in elemento2: 
+                    print (elemento2)
+
+                    return 'Eth-Trunk UP - Sin MAC'
+            
+            
+        
+        elif 'Total items displayed = ' in elemento: 
+            print (Fore.RED+elemento+Fore.RESET)
+            print ("Cuando aparezca esto es pq hay mas de una MAC")
+            for elemento2 in a: 
+                if 'Eth-Trunk100' in elemento2: 
+                    print (elemento2)
+                    elemento2 = elemento2.split('/')
+                    print(elemento2)
+                    elemento2 = (elemento2[0])
+                    print (elemento2)
+                    return elemento2
+
+
+def display_mac_address_vsi_REMOTO(a):
+
+    
+    a = a.replace('\\r','')
+    a = a.split('\\n')
+    a = (a[2:])
+    b = str(a)
+    #! Con 'b' veo si la vsi esta up o down. Tambien veo el nombre de la vsi.
+    #print (Back.BLUE+b+Back.RESET)
+    NO_HAY_MAC = 'No hay MAC'
+    for elemento in a:
+        if 'TELEFONICA-166-v' in elemento: 
+            #print (elemento)
+            VSI_name = elemento.split(' ')
+            VSI_name = (VSI_name[0])
+            #print (VSI_name)
+            tn.write(b'dis mac-address vsi '+str(VSI_name).encode('ascii') + b' \n')
+            c = tn.read_until(b'>',2)
+            c = str(c)
+            c = c.replace('\\r','')
+            c = c.split('\\n')
+            #print (c)
+            c = (c[2:])
+            #print (c)
+            #! Con 'c' veo la MAC de la vsi
+            print (c)
+            for elemento2 in a: 
+                if 'down' in elemento2: 
+                    print (elemento2)
+                    MAC_ADDRESS_VSI = 'VSI DOWN'
+                    
+                    return MAC_ADDRESS_VSI
+
+                elif 'up' in elemento2:
+                    print (Back.LIGHTBLACK_EX+elemento2+Back.RESET)
+
+                    for elemento3 in c:
+                        print (Back.BLUE+elemento3+Back.RESET)
+                        if 'Total items displayed = 0' in elemento3:
+                            
+                            return 'VSI UP - Sin MAC'
+
+
+                        elif 'Total items displayed = 1' in elemento3:
+                            
+                            for elemento4 in c: 
+                                if '-/TELEFONICA-166-v' in elemento4:
+                                    print (Back.MAGENTA+elemento4+Back.RESET)
+                                    MAC = elemento4.split(' ')
+                                    MAC = (MAC[0])
+
+                                    return MAC
+
+                        elif 'Total items displayed = ' in elemento3: 
+
+                            return 'mas de una MAC'
+
+ 
+
+def display_vlan_1166(tn):
+
+    print ("Ejecutando display vlan 1166")
+    a = tn.read_until(b'>',2)
+    tn.write(b'dis vlan 1166'+b' \n')
+    a = tn.read_until(b'>',2)
+    a = str(a)
+    
+
+    return a
+
+
+def display_int_des_GPON (tn):
+
+    print ("Ejecutando display interface description | GPON")
+    a = tn.read_until(b'>',2)
+    tn.write(b'dis int des | i GPON'+b' \n')
+    a = tn.read_until(b'>',2)
+    a = str(a)
+    
+
+    return a
+
+
+def detector_GPON(a,IP):
+
+    #TODO Esta funcion NO esta terminada.
+    #! Esta funcion debe detectar si las GPON del nodo son grandes, pequenas o Grandes y Pequenas
+    #! 'a' debe ser el output del des int des | i GPON
+    
+    #print (a)
+    a = a.replace('\\r','')
+    a = a.split('\\n')
+    a = str(a)
+    interfaces_GPON_Grandes = []
+    #! cont son la cantidad de cabeceras grandes GPON que tiene un nodo
+    #! cont2 son la cantidad de interfaces XGE con la palabra GPON
+    cont = 0
+    cont2 = 0
+    #! Las interfaces fisicas con GPON detectadas
+    interfaces_GPON_Eth_Trunk = 0
+    #print (Fore.RED+a+Fore.RESET)
+    for elemento in a: 
+        if 'Eth-Trunk' in elemento: 
+            print (Fore.RED+elemento+Fore.RESET)
+            interfaces_GPON_Grandes.append(interfaces_GPON_Grandes)
+            cont = cont + 1
+
+    print ('La cabecera con IP '+IP+' tiene '+str(cont)+' cabeceras GPON Grandes')
+
+    for elemento2 in a:
+        if 'XGE0/0' in elemento2: 
+            print (Fore.RED+elemento2+Fore.RESET)
+            cont2 = cont2+1
+
+
+    interfaces_GPON_Eth_Trunk = cont*2
+    print (interfaces_GPON_Eth_Trunk)
+    print (cont2)
+    
+    if interfaces_GPON_Eth_Trunk == cont2: 
+        print (Fore.RED+"Cuadra. No hay mas GPON"+Fore.RESET)
+
+    elif interfaces_GPON_Eth_Trunk < cont2:
+        print (Fore.RED+"Hay GPON pequenas"+Fore.RESET)
+
+
+    return
+
+
+def display_vlan_1166_LOCAL(a,tn):
+
+    a = a.replace('\\r','')
+    a = a.split('\\n')
+    vlan = False
+
+    for elemento in a: 
+        print (elemento)
+        if '1166 common  TG:' in elemento:
+            vlan = True
+            print (Back.RED+Fore.WHITE+elemento+Style.RESET_ALL)
+            if 'Eth-Trunk' in elemento:
+                print (Back.BLUE+Fore.WHITE+elemento+Style.RESET_ALL)
+                port_1166 = elemento
+                
+
+            else:
+                print (Back.GREEN+Fore.WHITE+elemento+Style.RESET_ALL)
+                port_1166 = elemento
+                
+
+    if vlan == True: 
+    
+        return port_1166
+
+    elif vlan == False: 
+
+        print (Back.LIGHTYELLOW_EX+Fore.LIGHTBLACK_EX+'NO DETECTADA VLAN'+Style.RESET_ALL)
+
+        return 'NO detectada VLAN'
+
+
+
+
+def display_vlan_1166_REMOTO(a,tn):
+
+    #? Esta funcion revisa si la vlan 1166 esta pasada por los puertos con GPON
+
+    a = a.replace('\\r','')
+    a = a.split('\\n')
+    vlan = False
+    
+
+    for elemento in a: 
+        print (elemento)
+        if '1166 common  TG:' in elemento:
+            vlan = True
+
+
+            print (Back.RED+Fore.WHITE+elemento+Style.RESET_ALL)
+
+            if 'Eth-Trunk' in elemento: 
+                print (Back.BLUE+Fore.WHITE+elemento+Style.RESET_ALL)
+                vlan_1166_port = elemento
+
+
+            else: 
+                print (Back.GREEN+Fore.WHITE+elemento+Style.RESET_ALL)
+                vlan_1166_port = elemento
+
+    if vlan == True: 
+
+        print (vlan_1166_port)
+
+        return vlan_1166_port
+
+
+    elif vlan == False: 
+
+        NO_detected = 'NO detectada VLAN'
+        print (Back.LIGHTYELLOW_EX+Fore.LIGHTBLACK_EX+'NO DETECTADA VLAN'+Style.RESET_ALL)
+        print (NO_detected)
+
+        return 'NO detectada VLAN'
+
+
+
+def apertura_excel(a,b,c,d,e):
+
+    fecha = time.strftime("%Y-%m-%d_%H-%M")
+    writer = pd.ExcelWriter("Comprobaciones_Guadiana_VSI.xlsx")
+    col_names = ['Hostname Nodo Acceso','IPNodo Acceso','Tipo', 'MAC', 'VLAN_1166']
+    df_resumen = pd.DataFrame(list(zip(a, b, c, d, e)), columns = col_names)
+    df_resumen.to_excel(writer, sheet_name="Resumen", index=False)
+    writer.save()
+
+    return writer
+
+
+def cierre_fichero_excel(writer):
+    #print("Guardando fichero excel")
+    #writer.save()
+    writer.close()
+    print("Fichero excel cerrado y guardado")
+    
+    return
+
+
+#* MAIN 
+
+dataframe_excel = Input()
+IP_NODO_ACCESO = dataframe_excel['IP ACCESO']
+user, password = introduce_credenciales()
+HOSTNAME_NODO_ACCESO_PARA_INFORME = []
+IP_NODO_ACCESO_PARA_INFORME = []
+TIPO_NODO_PARA_INFORME = []
+MAC = []
+VLAN_INTERFACE_GPON = []
+
+for IP in IP_NODO_ACCESO: 
+
+    try: 
+
+        tn = telnet(IP,user,password)
+        output_display_int_des_i_local_ID166 = display_int_des_i_local_ID166(tn,IP)
+        output_display_vsi_i_TELEFONICA_166 = display_vsi_i_TELEFONICA_166(tn,IP)
+        output_parse_display_vsi_i_TELEFONICA_166 = parse_display_vsi_i_TELEFONICA_166(output_display_vsi_i_TELEFONICA_166)
+        output_parse_display_int_des_i_local_ID166, hostname = parse_display_int_des_i_local_ID166(output_display_int_des_i_local_ID166)
+        output_display_vlan_1166 = display_vlan_1166(tn)
+        output_display_int_des_GPON = display_int_des_GPON(tn)
+        
+
+
+        
+
+        if 'D:166-' in output_parse_display_int_des_i_local_ID166 and 'TELEFONICA-166-v' in output_parse_display_vsi_i_TELEFONICA_166:
+
+            print (Back.LIGHTMAGENTA_EX+'Tiene entrega local y VSI'+Back.RESET)
+            HOSTNAME_NODO_ACCESO_PARA_INFORME.append(hostname)
+            IP_NODO_ACCESO_PARA_INFORME.append(IP)
+            TIPO_NODO_PARA_INFORME.append('Acceso LOCAL + REMOTO')
+            MAC.append('Mostraria MAC de ambas')
+            #print (output_parse_display_int_des_i_local_ID166)
+
+        #? ESTE ES UN NODO LOCAL
+
+        elif 'D:166-' in output_parse_display_int_des_i_local_ID166 and 'TELEFONICA-166-v' not in output_parse_display_vsi_i_TELEFONICA_166:       
+
+            print (Back.LIGHTGREEN_EX+'Tiene entrega local'+Back.RESET)
+            HOSTNAME_NODO_ACCESO_PARA_INFORME.append(hostname)
+            IP_NODO_ACCESO_PARA_INFORME.append(IP)
+            TIPO_NODO_PARA_INFORME.append('Acceso LOCAL')
+            output_display_mac_address_Eth_Trunk_100 = display_mac_address_Eth_Trunk_100_ACCESO(tn,IP)
+            output_parse_display_mac_address_Eth_Trunk_100 = parse_display_mac_address_Eth_Trunk_100(output_display_mac_address_Eth_Trunk_100,tn)
+            MAC.append(output_parse_display_mac_address_Eth_Trunk_100)
+            print ("Realizando checking de VLAN en NODO LOCAL")
+            output_display_vlan_1166_LOCAL = display_vlan_1166_LOCAL(output_display_vlan_1166,tn)
+            VLAN_INTERFACE_GPON.append(output_display_vlan_1166_LOCAL)
+
+
+
+
+        #? ESTE ES UN NODO REMOTO
+
+        elif 'D:166-' not in output_parse_display_int_des_i_local_ID166 and 'TELEFONICA-166-v' in output_parse_display_vsi_i_TELEFONICA_166:
+
+            print ('Tiene VSI')
+            HOSTNAME_NODO_ACCESO_PARA_INFORME.append(hostname)
+            IP_NODO_ACCESO_PARA_INFORME.append(IP)
+            TIPO_NODO_PARA_INFORME.append('Acceso REMOTO')
+            MAC_ADDRESS_VSI = display_mac_address_vsi_REMOTO(output_display_vsi_i_TELEFONICA_166)
+            MAC.append(MAC_ADDRESS_VSI)
+            print ("Realizando checking de VLAN")
+            #detector_GPON(output_display_int_des_GPON, IP)
+            output_display_vlan_1166_REMOTO = display_vlan_1166_REMOTO(output_display_vlan_1166,tn)
+            VLAN_INTERFACE_GPON.append(output_display_vlan_1166_REMOTO)
+
+
+    except: 
+
+        print (Back.RED+Fore.LIGHTWHITE_EX+'WARNING ERROR'+Style.RESET_ALL)
+
+
+
+print (HOSTNAME_NODO_ACCESO_PARA_INFORME)
+print (IP_NODO_ACCESO_PARA_INFORME)
+print (TIPO_NODO_PARA_INFORME)
+print (MAC)
+print (VLAN_INTERFACE_GPON)
+
+
+
+
+writer_excel = apertura_excel(HOSTNAME_NODO_ACCESO_PARA_INFORME, IP_NODO_ACCESO_PARA_INFORME,TIPO_NODO_PARA_INFORME,MAC,VLAN_INTERFACE_GPON)
+cierre_fichero_excel(writer_excel)
+
